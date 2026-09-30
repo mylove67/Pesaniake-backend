@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PesaNiaKE</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #07111f; color: #fff; }
+    header { padding: 16px 18px; background: #0d1b2e; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 24px; font-weight: 900; }
+    .pill { padding: 7px 12px; border-radius: 18px; background: #1e8e5a; font-size: 12px; font-weight: 800; }
+    main { max-width: 700px; margin: auto; padding: 14px; }
+    .card { background: #0d1c30; border: 1px solid #18314d; border-radius: 18px; padding: 16px; margin-bottom: 14px; }
+    .label { font-size: 12px; color: #91a6bf; margin-bottom: 4px; }
+    .balance { font-size: 34px; font-weight: 900; margin: 5px 0 12px; color: #43d17a; }
+    .row, .trade { display: flex; gap: 10px; }
+    .row > * { flex: 1; }
+    button { border: 0; border-radius: 12px; padding: 13px; font-weight: 800; font-size: 15px; color: #fff; cursor: pointer; }
+    .connect { background: #16844f; width: 100%; margin-top: 8px; }
+    .input-box { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #27435f; background: #081526; color: #fff; font-size: 14px; box-sizing: border-box; }
+    .price { text-align: center; font-size: 26px; font-weight: 900; margin: 10px; }
+    .status { padding: 10px 12px; border-radius: 10px; background: #12283d; color: #9fe3bd; font-size: 13px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">PesaNiaKE</div>
+    <div id="mode" class="pill">DEMO</div>
+  </header>
+  <main>
+    <section class="card">
+      <div class="label">DEMO ACCOUNT BALANCE</div>
+      <div class="balance" id="balanceDisplay">USD —</div>
+      
+      <div style="margin-top: 15px;">
+        <div class="label">PASTE YOUR DERIV DEMO TOKEN:</div>
+        <input id="tokenInput" class="input-box" type="password" placeholder="Paste token starting with '...' here">
+        <button class="connect" onclick="connectAndAuthorize()">🔌 Connect & Authorize Account</button>
+      </div>
+
+      <div id="status" class="status">● Ready to connect</div>
+    </section>
+
+    <section class="card">
+      <div class="label">LIVE MARKET (Volatility 100 Index)</div>
+      <div class="price" id="price">0.00</div>
+    </section>
+  </main>
+
+  <script>
+    const APP_ID = '34s5oiarV4ObREn4CPUCu';
+    let ws = null;
+
+    function connectAndAuthorize() {
+      const token = document.getElementById('tokenInput').value.trim();
+      const statusEl = document.getElementById('status');
+
+      if (!token) {
+        alert('Please paste your Deriv API Demo Token first!');
+        return;
+      }
+
+      statusEl.textContent = '● Connecting to Deriv...';
+
+      // Open WebSocket connection
+      ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+
+      ws.onopen = () => {
+        statusEl.textContent = '● Authorizing Account...';
+        // Send authorization request with your token
+        ws.send(JSON.stringify({ authorize: token }));
+      };
+
+      ws.onmessage = (msg) => {
+        const data = JSON.parse(msg.data);
+
+        // Authorization response
+        if (data.msg_type === 'authorize') {
+          if (data.error) {
+            statusEl.textContent = '❌ Authorization failed: ' + data.error.message;
+          } else {
+            const acc = data.authorize;
+            statusEl.textContent = `✅ Connected as ${acc.email} (${acc.loginid})`;
+            document.getElementById('balanceDisplay').textContent = `${acc.currency} ${Number(acc.balance).toLocaleString()}`;
+            
+            // Subscribe to live price ticks after successful login
+            ws.send(JSON.stringify({ ticks: '1HZ100V', subscribe: 1 }));
+          }
+        }
+
+        // Live Market Tick response
+        if (data.msg_type === 'tick' && data.tick) {
+          document.getElementById('price').textContent = Number(data.tick.quote).toFixed(2);
+        }
+      };
+
+      ws.onerror = (err) => {
+        statusEl.textContent = '● Connection error';
+        console.error('Deriv WS Error:', err);
+      };
+    }
+  </script>
+</body>
+</html>
